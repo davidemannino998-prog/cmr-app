@@ -13,6 +13,13 @@ import {
 
 // ============ UTILITY DATE ============
 const OGGI = new Date(2026, 5, 8); // lun 8 giugno 2026
+const NOMI_UTENTI = {
+  "davide@cmr.it": "Davide",
+  "alessandro@cmr.it": "Alessandro",
+  "anna@cmr.it": "Anna",
+  "matteo@cmr.it": "Matteo",
+};
+const nomeUtente = (email) => NOMI_UTENTI[email] || email || "Sconosciuto";
 function giorni(n) { const d = new Date(OGGI); d.setDate(d.getDate() + n); return d; }
 const NOMI_MESI = ["gen","feb","mar","apr","mag","giu","lug","ago","set","ott","nov","dic"];
 const MESI_EST = ["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio","agosto","settembre","ottobre","novembre","dicembre"];
@@ -196,8 +203,7 @@ export default function App() {
 // Carica i dati dal database all'avvio
 useEffect(() => {
   getLavori().then(data => {
-    if (data && data.length > 0) setLavori(data);
-    else setLavori(LAVORI_INIZIALI);
+    setLavori(data || []);
   });
 }, []);
   const [squadre, setSquadre] = useState(SQUADRE_INIZIALI);
@@ -205,6 +211,7 @@ useEffect(() => {
   const [searchOpen, setSearchOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [menuUtente, setMenuUtente] = useState(false);
+  const [notifScartate, setNotifScartate] = useState([]);
 
   const ordinati = useMemo(() => [...lavori].sort((a,b) => {
     const pa = prossimaConsegna(a), pb = prossimaConsegna(b);
@@ -269,13 +276,14 @@ const toggleFlag = async (codice, key) => {
       ? { ...l, consegne: l.consegne.map((c) => c.n === n ? { ...c, stato: arrivato ? "consegnato" : "in_attesa", dataArrivo: arrivato ? OGGI : null } : c) }
       : l));
   };
-  const aggiungiNota = async (codice, testo) => {
+const aggiungiNota = async (codice, testo) => {
+    const autore = nomeUtente(utente?.email);
     const lavoro = lavori.find(l => l.codice === codice);
     if (lavoro) {
-      await addNota(lavoro.id, "Davide", testo);
+      await addNota(lavoro.id, autore, testo);
     }
     setLavori((prev) => prev.map((l) => l.codice === codice
-      ? { ...l, diario: [...(l.diario||[]), { data: OGGI, autore: "Davide", testo }] }
+      ? { ...l, diario: [...(l.diario||[]), { data: new Date(), autore, testo }] }
       : l));
   };
 
@@ -285,17 +293,21 @@ const toggleFlag = async (codice, key) => {
     attivi.forEach((l) => {
       l.consegne.forEach((c) => {
         if (c.stato !== "consegnato" && giorniDiff(c.consegna) < 0)
-          out.push({ tipo:"ritardo", testo:`${l.codice} · ${c.descrizione} in ritardo di ${Math.abs(giorniDiff(c.consegna))}gg (${c.fornitore})`, l });
+          out.push({ tipo:"ritardo", id:`ritardo-${l.codice}-${c.n}`, testo:`${l.codice} · ${c.descrizione} in ritardo di ${Math.abs(giorniDiff(c.consegna))}gg (${c.fornitore})`, l });
         if (c.stato === "consegnato" && c.dataArrivo && giorniDiff(c.dataArrivo) >= -2)
-          out.push({ tipo:"arrivo", testo:`${l.codice} · ${c.descrizione} arrivato in magazzino`, l });
+          out.push({ tipo:"arrivo", id:`arrivo-${l.codice}-${c.n}`, testo:`${l.codice} · ${c.descrizione} arrivato in magazzino`, l });
       });
-      (l.pose||[]).forEach((po) => {
+(l.pose||[]).forEach((po) => {
         const g = giorniDiff(po.dataPosa);
-        if (g >= 0 && g <= 3) out.push({ tipo:"posa", testo:`${l.codice} · posa ${po.squadra} ${fmtData(po.dataPosa)}`, l });
+        if (g >= 0 && g <= 3) out.push({ tipo:"posa", id:`posa-${l.codice}-${po.id}`, testo:`${l.codice} · posa ${po.squadra} ${fmtData(po.dataPosa)}`, l });
+      });
+      (l.diario||[]).forEach((nota) => {
+        const gg = Math.round((new Date() - new Date(nota.data)) / 86400000);
+        if (gg >= 0 && gg <= 3 && nota.autore !== nomeUtente(utente?.email)) out.push({ tipo:"nota", id:`nota-${l.codice}-${nota.data}-${nota.testo.slice(0,10)}`, testo:`${nota.autore} ha aggiunto una nota a ${l.codice}: "${nota.testo.length > 40 ? nota.testo.slice(0,40)+'…' : nota.testo}"`, l });
       });
     });
-    return out;
-  }, [attivi]);
+  return out.filter(n => !notifScartate.includes(n.id));
+  }, [attivi, utente, notifScartate]);
 const aggiornaPag = async (codice, patchPag) => {
     const mapPag = {
       modalita: 'pag_modalita', numAcconti: 'pag_num_acconti',
@@ -448,6 +460,8 @@ if (!caricato) return <div style={{ minHeight: "100vh", display: "flex", alignIt
 
       {notifOpen && (
         <NotifichePanel notifiche={notifiche} onClose={()=>setNotifOpen(false)}
+          onScarta={(id) => setNotifScartate(prev => [...prev, id])}
+          onScartaTutte={() => setNotifScartate(prev => [...prev, ...notifiche.map(n => n.id)])}
           onApri={(n) => { setNotifOpen(false); if (n.l) apriLavoro(n.l); }} />
       )}
       {searchOpen && (
@@ -1139,7 +1153,17 @@ function InfoRiga({ label, icon:Icon, value }) {
 // ============ CALENDARIO ============
 function Calendario({ lavori, squadre, apriLavoro, onPosa, onNuovaSquadra }) {
   const [vistaCal, setVistaCal] = useState("pose");
-  const settimanaGiorni = [0,1,2,3,4,5].map((i) => giorni(i));
+  const [offsetSett, setOffsetSett] = useState(0);
+  const oggiReale = new Date();
+  const lunedi = new Date(oggiReale);
+  const giornoSett = (oggiReale.getDay() + 6) % 7;
+  lunedi.setDate(oggiReale.getDate() - giornoSett + offsetSett * 7);
+  lunedi.setHours(0,0,0,0);
+  const settimanaGiorni = [0,1,2,3,4,5].map((i) => {
+    const d = new Date(lunedi); d.setDate(lunedi.getDate() + i); return d;
+  });
+  const fineSett = settimanaGiorni[5];
+  const labelSett = `${lunedi.getDate()} ${NOMI_MESI[lunedi.getMonth()]} - ${fineSett.getDate()} ${NOMI_MESI[fineSett.getMonth()]} ${fineSett.getFullYear()}`;
   const tuttePose = lavori.flatMap((l) => (l.pose||[]).map((po) => ({ l, po })));
   const tutteConsegneCli = lavori.flatMap((l) => (l.consegneCliente||[]).map((cc) => ({ l, cc })));
   const daPianificare = lavori.filter((l) => puoOrganizzare(l) && prossimaConsegna(l) && statoPosa(l) !== "completa");
@@ -1148,13 +1172,14 @@ function Calendario({ lavori, squadre, apriLavoro, onPosa, onNuovaSquadra }) {
       <div className="anim" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18, flexWrap:"wrap", gap:14 }}>
         <div>
           <h1 style={{ fontSize:27, fontWeight:600, fontFamily:"'Fraunces',serif", letterSpacing:"-0.02em" }}>Calendario</h1>
-          <p style={{ fontSize:14, color:"#6b7a90", marginTop:4 }}>Settimana 8 - 13 giugno 2026</p>
+          <p style={{ fontSize:14, color:"#6b7a90", marginTop:4 }}>{labelSett}</p>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           {vistaCal === "pose" && <button className="btn" onClick={onNuovaSquadra} style={{ display:"flex", alignItems:"center", gap:7, background:"#fff", border:"1px solid #d4ddea", color:"#1e4d8c", padding:"10px 15px", borderRadius:10, fontWeight:600, fontSize:13.5 }}><Plus size={16} /> Nuova squadra</button>}
           <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-            <button className="btn" style={navArrow}><ChevronLeft size={18} color="#5a6b82" /></button>
-            <button className="btn" style={navArrow}><ChevronRight size={18} color="#5a6b82" /></button>
+            <button className="btn" onClick={()=>setOffsetSett(offsetSett-1)} style={navArrow}><ChevronLeft size={18} color="#5a6b82" /></button>
+            <button className="btn" onClick={()=>setOffsetSett(0)} style={{ ...navArrow, width:"auto", padding:"0 12px", fontSize:12.5, fontWeight:600, color:"#1e4d8c" }}>Oggi</button>
+            <button className="btn" onClick={()=>setOffsetSett(offsetSett+1)} style={navArrow}><ChevronRight size={18} color="#5a6b82" /></button>
           </div>
         </div>
       </div>
@@ -1326,26 +1351,31 @@ function RicercaOverlay({ lavori, onClose, onApri }) {
 }
 
 // ============ NOTIFICHE ============
-function NotifichePanel({ notifiche, onClose, onApri }) {
+function NotifichePanel({ notifiche, onClose, onApri, onScarta, onScartaTutte }) {
   const stile = {
     ritardo: { icon:AlertTriangle, color:"#dc2626", bg:"#fef2f2" },
     arrivo:  { icon:Package, color:"#15803d", bg:"#f0fdf4" },
     posa:    { icon:Users, color:"#1e4d8c", bg:"#eef3fb" },
+    nota:    { icon:BookOpen, color:"#7c3aed", bg:"#f5f3ff" },
   };
   return (
     <>
       <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:90 }} />
       <div className="pop" style={{ position:"fixed", top:70, right:16, width:"min(380px, calc(100vw - 32px))", maxHeight:"70vh", overflow:"auto", background:"#fff", borderRadius:14, border:"1px solid #e8edf4", boxShadow:"0 16px 48px rgba(26,35,50,.18)", zIndex:100 }}>
-        <div style={{ padding:"14px 18px", borderBottom:"1px solid #eef2f7", fontWeight:700, fontSize:14.5, position:"sticky", top:0, background:"#fff" }}>Notifiche ({notifiche.length})</div>
+       <div style={{ padding:"12px 18px", borderBottom:"1px solid #eef2f7", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, background:"#fff", zIndex:1 }}>
+          <span style={{ fontWeight:700, fontSize:14.5 }}>Notifiche ({notifiche.length})</span>
+          {notifiche.length > 0 && <button onClick={onScartaTutte} className="btn" style={{ fontSize:12, fontWeight:600, color:"#5a6b82", background:"#f1f4f8", padding:"5px 10px", borderRadius:7, border:"none", cursor:"pointer" }}>Cancella tutte</button>}
+        </div>
         {notifiche.length === 0 ? (
           <div style={{ padding:"26px 18px", textAlign:"center", color:"#9aa7ba", fontSize:13 }}>Nessuna notifica.</div>
         ) : notifiche.map((n, i) => {
           const st = stile[n.tipo] || stile.posa;
           const Icon = st.icon;
           return (
-            <div key={i} className="row-hover" onClick={()=>onApri(n)} style={{ display:"flex", gap:11, padding:"12px 16px", borderBottom: i<notifiche.length-1?"1px solid #f0f3f8":"none", alignItems:"flex-start" }}>
-              <div style={{ width:30, height:30, borderRadius:8, background:st.bg, display:"grid", placeItems:"center", flexShrink:0 }}><Icon size={15} color={st.color} /></div>
-              <div style={{ fontSize:13, color:"#2d3a4c", lineHeight:1.45, paddingTop:4 }}>{n.testo}</div>
+            <div key={i} className="row-hover" style={{ display:"flex", gap:11, padding:"12px 16px", borderBottom: i<notifiche.length-1?"1px solid #f0f3f8":"none", alignItems:"flex-start" }}>
+              <div onClick={()=>onApri(n)} style={{ width:30, height:30, borderRadius:8, background:st.bg, display:"grid", placeItems:"center", flexShrink:0, cursor:"pointer" }}><Icon size={15} color={st.color} /></div>
+              <div onClick={()=>onApri(n)} style={{ flex:1, fontSize:13, color:"#2d3a4c", lineHeight:1.45, paddingTop:4, cursor:"pointer" }}>{n.testo}</div>
+              <button onClick={(e)=>{ e.stopPropagation(); onScarta(n.id); }} title="Elimina notifica" style={{ flexShrink:0, width:24, height:24, borderRadius:6, background:"transparent", border:"none", cursor:"pointer", display:"grid", placeItems:"center", color:"#9aa7ba" }}><X size={15} /></button>
             </div>
           );
         })}
