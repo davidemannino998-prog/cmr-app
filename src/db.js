@@ -143,3 +143,15 @@ export async function deletePosa(id) {
   const { error } = await supabase.from('pose').delete().eq('id', id);
   if (error) console.error(error);
 }
+
+export async function deleteNota(lavoro_id, autore, testo) {
+  const { error } = await supabase.from('diario').delete()
+    .eq('lavoro_id', lavoro_id).eq('autore', autore).eq('testo', testo);
+  if (error) console.error(error);
+}
+
+export async function deleteConsegnaCliente(lavoro_id, numero) {
+  const { error } = await supabase.from('consegne_cliente').delete()
+    .eq('lavoro_id', lavoro_id).eq('numero', numero);
+  if (error) console.error(error);
+}

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { supabase } from './supabaseClient';
-import { saveLavoro, getLavori, addConsegna, addNota, savePosa, updateLavoro, segnaArrivoDB, deleteLavoro } from './db';
+import { saveLavoro, getLavori, addConsegna, addNota, savePosa, updateLavoro, segnaArrivoDB, deleteLavoro, deleteConsegna, deletePosa, deleteNota, deleteConsegnaCliente } from './db';
 import Login from './Login';
 import { getUtente, logout } from './auth';
 import {
@@ -104,11 +104,14 @@ export default function App() {
     getUtente().then(u => { setUtente(u); setCaricato(true); });
   }, []);
   const [lavori, setLavori] = useState([]);
+  const [caricandoDati, setCaricandoDati] = useState(true);
 
 // Carica i dati dal database all'avvio
 useEffect(() => {
+setCaricandoDati(true);
   getLavori().then(data => {
     setLavori(data || []);
+    setTimeout(() => setCaricandoDati(false);
   });
 }, []);
   const [squadre, setSquadre] = useState(SQUADRE_INIZIALI);
@@ -151,6 +154,35 @@ const concludiLavoro = async (codice) => {
       await deleteLavoro(lavoro.id);
     }
     setLavori((prev) => prev.filter((l) => l.codice !== codice));
+  };
+  const eliminaConsegna = async (codice, n) => {
+    const lavoro = lavori.find(l => l.codice === codice);
+    if (lavoro && lavoro.id) {
+      await deleteConsegna(lavoro.id, n);
+    }
+    setLavori((prev) => prev.map((l) => l.codice === codice
+      ? { ...l, consegne: l.consegne.filter((c) => c.n !== n) } : l));
+  };
+  const eliminaConsegnaCliente = async (codice, n) => {
+    const lavoro = lavori.find(l => l.codice === codice);
+    if (lavoro && lavoro.id) {
+      await deleteConsegnaCliente(lavoro.id, n);
+    }
+    setLavori((prev) => prev.map((l) => l.codice === codice
+      ? { ...l, consegneCliente: (l.consegneCliente||[]).filter((c) => c.n !== n) } : l));
+  };
+  const eliminaPosa = async (codice, posaId) => {
+    await deletePosa(posaId);
+    setLavori((prev) => prev.map((l) => l.codice === codice
+      ? { ...l, pose: (l.pose||[]).filter((p) => p.id !== posaId) } : l));
+  };
+  const eliminaNota = async (codice, nota) => {
+    const lavoro = lavori.find(l => l.codice === codice);
+    if (lavoro && lavoro.id) {
+      await deleteNota(lavoro.id, nota.autore, nota.testo);
+    }
+    setLavori((prev) => prev.map((l) => l.codice === codice
+      ? { ...l, diario: (l.diario||[]).filter((d) => !(d.autore === nota.autore && d.testo === nota.testo)) } : l));
   };
 const toggleFlag = async (codice, key) => {
     const lavoro = lavori.find(l => l.codice === codice);
@@ -270,6 +302,16 @@ const handleLogout = async () => {
   ];
 if (!caricato) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "system-ui" }}>Caricamento...</div>;
   if (!utente) return <Login onLogin={(u) => setUtente(u)} />;
+  if (caricandoDati) return (
+    <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:"#f1f4f8", gap:24 }}>
+      <style>{`@keyframes camminaT { 0%,100% {transform:translateX(-50px);} 50% {transform:translateX(50px);} } @keyframes dondolaT { 0%,100% {transform:rotate(-4deg);} 50% {transform:rotate(4deg);} }`}</style>
+      <div style={{ animation:"camminaT 3s ease-in-out infinite" }}>
+        <div style={{ fontSize:64, animation:"dondolaT 0.5s ease-in-out infinite" }}>🐢</div>
+      </div>
+      <div style={{ fontSize:15, color:"#5a6b82", fontWeight:600, fontFamily:"system-ui, sans-serif" }}>Caricamento lavori...</div>
+    </div>
+  );
+  
   return (
     <div style={{ minHeight:"100vh", background:"#f1f4f8", fontFamily:"'DM Sans', system-ui, sans-serif", color:"#1a2332" }}>
       <style>{`
@@ -288,6 +330,11 @@ if (!caricato) return <div style={{ minHeight: "100vh", display: "flex", alignIt
         @keyframes fadeIn { from {opacity:0;} to {opacity:1;} }
         .fade { animation: fadeIn .25s ease; }
         @keyframes pop { from {opacity:0; transform:scale(.96);} to {opacity:1; transform:scale(1);} }
+        @keyframes cammina { 0%,100% {transform:translateX(-60px);} 50% {transform:translateX(60px);} }
+        @keyframes dondola { 0%,100% {transform:rotate(-3deg);} 50% {transform:rotate(3deg);} }
+        @keyframes zampe { 0%,100% {transform:translateY(0);} 50% {transform:translateY(-2px);} }
+        .turtle-walk { animation: cammina 3s ease-in-out infinite; display:inline-block; }
+        .turtle-body { animation: dondola 0.6s ease-in-out infinite; display:inline-block; }
         .pop { animation: pop .2s ease; }
         textarea { font-family: inherit; }
         .grid-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
@@ -377,7 +424,7 @@ if (!caricato) return <div style={{ minHeight: "100vh", display: "flex", alignIt
         {vista === "dashboard" && <Dashboard settimana={settimana} inRitardo={inRitardo} prossimi={prossimi} daAssegnare={daAssegnare} totale={attivi.length} vaiReport={() => setVista("report")} apriLavoro={apriLavoro} />}
         {vista === "report" && <Report settimana={settimana} inRitardo={inRitardo} prossimi={prossimi} apriLavoro={apriLavoro} onNotifica={(l)=>setModal({tipo:"posa", lavoro:l})} />}
         {vista === "lavori" && <Lavori lavori={attivi} apriLavoro={apriLavoro} onNuovo={()=>setModal({tipo:"nuovo"})} />}
-        {vista === "dettaglio" && <Dettaglio l={lavoroSel} indietro={() => setVista("lavori")} onPosa={(l)=>setModal({tipo:"posa", lavoro:l})} onAggiungiConsegna={aggiungiConsegna} onAggiungiConsegnaCliente={aggiungiConsegnaCliente} onAggiornaPag={aggiornaPag} onConcludi={concludiLavoro} onRiapri={riapriLavoro} onSegnaArrivo={segnaArrivo} onAggiungiNota={aggiungiNota} onToggleFlag={toggleFlag} onElimina={eliminaLavoro} />}
+        {vista === "dettaglio" && <Dettaglio l={lavoroSel} indietro={() => setVista("lavori")} onPosa={(l)=>setModal({tipo:"posa", lavoro:l})} onAggiungiConsegna={aggiungiConsegna} onAggiungiConsegnaCliente={aggiungiConsegnaCliente} onAggiornaPag={aggiornaPag} onConcludi={concludiLavoro} onRiapri={riapriLavoro} onSegnaArrivo={segnaArrivo} onAggiungiNota={aggiungiNota} onToggleFlag={toggleFlag} onElimina={eliminaLavoro} onEliminaConsegna={eliminaConsegna} onEliminaPosa={eliminaPosa} onEliminaNota={eliminaNota} onEliminaConsegnaCliente={eliminaConsegnaCliente} />}
         {vista === "calendario" && <Calendario lavori={attivi} squadre={squadre} apriLavoro={apriLavoro} onPosa={(l)=>setModal({tipo:"posa", lavoro:l})} onNuovaSquadra={()=>setModal({tipo:"squadra"})} />}
         {vista === "magazzino" && <Magazzino lavori={attivi} apriLavoro={apriLavoro} onSegnaArrivo={segnaArrivo} />}
         {vista === "anagrafica" && <Anagrafica lavori={ordinati} apriLavoro={apriLavoro} onNuovo={()=>setModal({tipo:"nuovo"})} />}
@@ -649,7 +696,7 @@ function LavoroRow({ l, last, onClick }) {
 }
 
 // ============ DETTAGLIO LAVORO ============
-function Dettaglio({ l, indietro, onPosa, onAggiungiConsegna, onAggiungiConsegnaCliente, onAggiornaPag, onConcludi, onRiapri, onSegnaArrivo, onAggiungiNota, onToggleFlag, onElimina }) {
+function Dettaglio({ l, indietro, onPosa, onAggiungiConsegna, onAggiungiConsegnaCliente, onAggiornaPag, onConcludi, onRiapri, onSegnaArrivo, onAggiungiNota, onToggleFlag, onElimina, onEliminaConsegna, onEliminaPosa, onEliminaNota, onEliminaConsegnaCliente }) {
   const [addOpen, setAddOpen] = useState(false);
   const [addCliOpen, setAddCliOpen] = useState(false);
   const [nuovaNota, setNuovaNota] = useState("");
@@ -782,8 +829,11 @@ function Dettaglio({ l, indietro, onPosa, onAggiungiConsegna, onAggiungiConsegna
                         <span style={{ fontSize:11.5, fontWeight:700, color:"#1e4d8c", background:"#eef3fb", width:24, height:24, borderRadius:"50%", display:"grid", placeItems:"center" }}>{c.n}</span>
                         <span style={{ fontWeight:600, fontSize:14 }}>{c.descrizione}</span>
                       </div>
-                      <span style={{ fontSize:11, fontWeight:600, color:stStyle.c, background:stStyle.b, padding:"3px 9px", borderRadius:6 }}>{stStyle.t}</span>
-                    </div>
+                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                        <span style={{ fontSize:11, fontWeight:600, color:stStyle.c, background:stStyle.b, padding:"3px 9px", borderRadius:6 }}>{stStyle.t}</span>
+                        {!concluso && <button onClick={()=>{ if(window.confirm(`Eliminare la consegna "${c.descrizione}"?`)) onEliminaConsegna(l.codice, c.n); }} title="Elimina consegna fornitore" style={{ width:24, height:24, borderRadius:6, background:"transparent", border:"none", cursor:"pointer", display:"grid", placeItems:"center", color:"#c5cddb" }}><X size={14} /></button>}
+                      </div>
+                      </div>
                     <div style={{ display:"flex", gap:16, fontSize:12, color:"#8493a8", marginLeft:32, marginBottom: concluso?0:8 }}>
                       <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><Truck size={12} /> {c.fornitore}</span>
                       <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><Calendar size={12} /> prevista {fmtData(c.consegna)}</span>
@@ -829,6 +879,7 @@ function Dettaglio({ l, indietro, onPosa, onAggiungiConsegna, onAggiungiConsegna
                       </div>
                       <div style={{ fontSize:13, color:"#3d4a5c", lineHeight:1.5 }}>{nota.testo}</div>
                     </div>
+                    {!concluso && <button onClick={()=>{ if(window.confirm("Eliminare questa nota?")) onEliminaNota(l.codice, nota); }} title="Elimina nota" style={{ flexShrink:0, width:24, height:24, borderRadius:6, background:"transparent", border:"none", cursor:"pointer", display:"grid", placeItems:"center", color:"#c5cddb" }}><X size={14} /></button>}
                   </div>
                 ))}
               </div>
@@ -904,7 +955,10 @@ function Dettaglio({ l, indietro, onPosa, onAggiungiConsegna, onAggiungiConsegna
                           <span style={{ fontWeight:600, fontSize:14 }}>{c.descrizione}</span>
                           {c.insieme && <span title="Parte insieme dal magazzino, stessa spedizione" style={{ display:"inline-flex", alignItems:"center", gap:3, fontSize:10.5, fontWeight:600, color:"#7c3aed", background:"#f5f3ff", padding:"2px 7px", borderRadius:5 }}><Link2 size={11} /> stessa spedizione</span>}
                         </div>
+                        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                         <span style={{ fontSize:11, fontWeight:600, color:stStyle.c, background:stStyle.b, padding:"3px 9px", borderRadius:6 }}>{stStyle.t}</span>
+                        {!concluso && <button onClick={()=>{ if(window.confirm(`Eliminare la consegna "${c.descrizione}"?`)) onEliminaConsegnaCliente(l.codice, c.n); }} title="Elimina consegna" style={{ width:24, height:24, borderRadius:6, background:"transparent", border:"none", cursor:"pointer", display:"grid", placeItems:"center", color:"#c5cddb" }}><X size={14} /></button>}
+                      </div>
                       </div>
                       <div style={{ fontSize:12, color:"#8493a8", marginLeft:32, display:"inline-flex", alignItems:"center", gap:4 }}><Calendar size={12} /> consegna al cliente {fmtData(c.data)}</div>
                     </div>
@@ -935,7 +989,10 @@ function Dettaglio({ l, indietro, onPosa, onAggiungiConsegna, onAggiungiConsegna
                       <div key={po.id} style={{ border:"1px solid #e3edfa", background:"#f7faff", borderRadius:10, padding:"12px 14px" }}>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
                           <span style={{ fontWeight:700, fontSize:14, color:"#1e4d8c", display:"flex", alignItems:"center", gap:7 }}><Users size={15} /> {po.squadra}</span>
-                          <span style={{ fontSize:12, color:"#5a6b82", fontWeight:600, display:"flex", alignItems:"center", gap:5 }}><Calendar size={13} /> {fmtData(po.dataPosa)}</span>
+                          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                            <span style={{ fontSize:12, color:"#5a6b82", fontWeight:600, display:"flex", alignItems:"center", gap:5 }}><Calendar size={13} /> {fmtData(po.dataPosa)}</span>
+                            {!concluso && <button onClick={()=>{ if(window.confirm(`Eliminare la posa di ${po.squadra}?`)) onEliminaPosa(l.codice, po.id); }} title="Elimina posa" style={{ width:24, height:24, borderRadius:6, background:"transparent", border:"none", cursor:"pointer", display:"grid", placeItems:"center", color:"#c5cddb" }}><X size={14} /></button>}
+                          </div>
                         </div>
                         <div style={{ fontSize:12.5, color:"#3d4a5c", lineHeight:1.5 }}>
                           <span style={{ color:"#9aa7ba", fontWeight:600 }}>Posa: </span>{voci.length ? voci.join(" · ") : "—"}
