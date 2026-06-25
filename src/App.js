@@ -111,7 +111,7 @@ useEffect(() => {
 setCaricandoDati(true);
   getLavori().then(data => {
     setLavori(data || []);
-    setTimeout(() => setCaricandoDati(false);
+    setCaricandoDati(false);
   });
 }, []);
   const [squadre, setSquadre] = useState(SQUADRE_INIZIALI);
