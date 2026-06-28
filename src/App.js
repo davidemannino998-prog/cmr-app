@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 // ============ UTILITY DATE ============
-const OGGI = new Date(2026, 5, 8); // lun 8 giugno 2026
+const OGGI = (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })(); // sempre oggi
 const NOMI_UTENTI = {
   "davide@cmr.it": "Davide",
   "alessandro@cmr.it": "Alessandro",
@@ -457,7 +457,7 @@ if (!caricato) return <div style={{ minHeight: "100vh", display: "flex", alignIt
           onApri={(l) => { setSearchOpen(false); apriLavoro(l); }} />
       )}
       <main style={{ maxWidth:1180, margin:"0 auto", padding:"28px" }} className="fade" key={vista}>
-        {vista === "dashboard" && <Dashboard settimana={settimana} inRitardo={inRitardo} prossimi={prossimi} daAssegnare={daAssegnare} totale={attivi.length} vaiReport={() => setVista("report")} apriLavoro={apriLavoro} />}
+        {vista === "dashboard" && <Dashboard settimana={settimana} inRitardo={inRitardo} prossimi={prossimi} daAssegnare={daAssegnare} totale={attivi.length} vaiReport={() => setVista("report")} apriLavoro={apriLavoro} nomeUtente={nomeUtente(utente?.email)} />}
         {vista === "report" && <Report settimana={settimana} inRitardo={inRitardo} prossimi={prossimi} apriLavoro={apriLavoro} onNotifica={(l)=>setModal({tipo:"posa", lavoro:l})} />}
         {vista === "lavori" && <Lavori lavori={attivi} apriLavoro={apriLavoro} onNuovo={()=>setModal({tipo:"nuovo"})} />}
         {modificaLav && <ModificaModal lavoro={modificaLav} onClose={()=>setModificaLav(null)} onSalva={modificaLavoro} />}{vista === "dettaglio" && <Dettaglio l={lavoroSel} indietro={() => setVista("lavori")} onPosa={(l)=>setModal({tipo:"posa", lavoro:l})} onAggiungiConsegna={aggiungiConsegna} onAggiungiConsegnaCliente={aggiungiConsegnaCliente} onAggiornaPag={aggiornaPag} onConcludi={concludiLavoro} onRiapri={riapriLavoro} onSegnaArrivo={segnaArrivo} onAggiungiNota={aggiungiNota} onToggleFlag={toggleFlag} onElimina={eliminaLavoro} onModifica={()=>setModificaLav(lavoroSel)} onDuplica={duplicaLavoro} esistenti={lavori.map(l=>l.codice)} onEliminaConsegna={eliminaConsegna} onEliminaPosa={eliminaPosa} onEliminaNota={eliminaNota} onEliminaConsegnaCliente={eliminaConsegnaCliente} />}
@@ -489,7 +489,7 @@ if (!caricato) return <div style={{ minHeight: "100vh", display: "flex", alignIt
 }
 
 // ============ DASHBOARD ============
-function Dashboard({ settimana, inRitardo, prossimi, daAssegnare, totale, vaiReport, apriLavoro }) {
+function Dashboard({ settimana, inRitardo, prossimi, daAssegnare, totale, vaiReport, apriLavoro, nomeUtente }) {
   const stat = [
     { label:"Lavori attivi", val:totale, icon:Package, color:"#1e4d8c", bg:"#eef3fb" },
     { label:"In arrivo questa settimana", val:settimana.length, icon:Truck, color:"#0e7490", bg:"#ecfeff" },
@@ -499,8 +499,8 @@ function Dashboard({ settimana, inRitardo, prossimi, daAssegnare, totale, vaiRep
   return (
     <div>
       <div style={{ marginBottom:24 }} className="anim">
-        <div style={{ fontSize:13, color:"#7c8aa0", fontWeight:500, marginBottom:4 }}>Lunedì 8 giugno 2026</div>
-        <h1 style={{ fontSize:27, fontWeight:600, fontFamily:"'Fraunces',serif", letterSpacing:"-0.02em" }}>Buongiorno, Davide</h1>
+        <div style={{ fontSize:13, color:"#7c8aa0", fontWeight:500, marginBottom:4, textTransform:"capitalize" }}>{fmtDataEstesa(OGGI)}</div>
+        <h1 style={{ fontSize:27, fontWeight:600, fontFamily:"'Fraunces',serif", letterSpacing:"-0.02em" }}>Buongiorno, {nomeUtente}</h1>
       </div>
       <div className="grid-stats">
         {stat.map((s,i) => {
@@ -570,7 +570,7 @@ function Report({ settimana, inRitardo, prossimi, apriLavoro, onNotifica }) {
   return (
     <div>
       <div className="anim" style={{ marginBottom:24 }}>
-        <div style={{ fontSize:13, color:"#7c8aa0", fontWeight:500, marginBottom:4, display:"flex", alignItems:"center", gap:7 }}><Calendar size={15} /> Report generato lunedì 8 giugno 2026</div>
+        <div style={{ fontSize:13, color:"#7c8aa0", fontWeight:500, marginBottom:4, display:"flex", alignItems:"center", gap:7, textTransform:"capitalize" }}><Calendar size={15} /> Report generato {fmtDataEstesa(OGGI)}</div>
         <h1 style={{ fontSize:27, fontWeight:600, fontFamily:"'Fraunces',serif", letterSpacing:"-0.02em" }}>Report settimanale consegne</h1>
         <p style={{ fontSize:14, color:"#6b7a90", marginTop:6, maxWidth:540 }}>Materiali in arrivo e in ritardo. Verifica e organizza la posa quando il materiale e il pagamento sono pronti.</p>
       </div>
@@ -1079,7 +1079,7 @@ function Dettaglio({ l, indietro, onPosa, onAggiungiConsegna, onAggiungiConsegna
 function FormConsegna({ onSalva }) {
   const [desc, setDesc] = useState("");
   const [forn, setForn] = useState("");
-  const [data, setData] = useState(toInput(giorni(7)));
+  const [data, setData] = useState(toInput(OGGI));
   const valido = desc.trim() && forn.trim();
   return (
     <div className="pop" style={{ background:"#f7f9fc", border:"1px solid #e3e8f0", borderRadius:10, padding:"16px", marginBottom:14 }}>
@@ -1098,7 +1098,7 @@ function FormConsegna({ onSalva }) {
 function FormConsegnaCliente({ consegne, onSalva }) {
   const [voci, setVoci] = useState([]);
   const [extra, setExtra] = useState("");
-  const [data, setData] = useState(toInput(giorni(5)));
+  const [data, setData] = useState(toInput(OGGI));
   const [insieme, setInsieme] = useState(false);
   const toggleVoce = (n) => setVoci((v) => v.includes(n) ? v.filter((x)=>x!==n) : [...v, n]);
   const selDescr = (consegne||[]).filter((c) => voci.includes(c.n)).map((c) => c.descrizione);
@@ -1555,7 +1555,7 @@ function PosaModal({ lavoro, squadre, onAddSquadra, onConferma, onClose }) {
   const coperte = vociCoperte(lavoro);
   const nonCoperte = lavoro.consegne.filter((c) => !coperte.has(c.n)).map((c) => c.n);
   const [squadra, setSquadra] = useState("");
-  const [dataPosa, setDataPosa] = useState(toInput(giorni(7)));
+  const [dataPosa, setDataPosa] = useState(toInput(OGGI));
   const [voci, setVoci] = useState(nonCoperte); // di default le voci non ancora pianificate
   const [nuovaOpen, setNuovaOpen] = useState(false);
   const [nuovaNome, setNuovaNome] = useState("");
