@@ -150,6 +150,23 @@ const concludiLavoro = async (codice) => {
     await updateLavoro(codice, { concluso: false, data_chiusura: null });
     setLavori((prev) => prev.map((l) => l.codice === codice ? { ...l, concluso: false, dataChiusura: null } : l));
   };
+  const duplicaLavoro = async (codiceOrig, nuovoCodice) => {
+    const orig = lavori.find(l => l.codice === codiceOrig);
+    if (!orig) return;
+    const nuovo = {
+      codice: nuovoCodice.trim().toUpperCase(),
+      cliente: orig.cliente, tel: orig.tel, email: orig.email,
+      tipo: orig.tipo, tipologia: orig.tipologia, indirizzo: orig.indirizzo,
+      materialePosa: orig.materialePosa, note: orig.note, soloFornitura: orig.soloFornitura,
+      dataRilievo: OGGI,
+      flags: { rilievo:false, confermaOrdine:false, ordineMateriali:false },
+      pag: orig.pag.modalita === "Riba" ? { modalita:"Riba" } : { modalita:"Acconto", numAcconti: orig.pag.numAcconti || 1, accontiRicevuti:0, saldo:false, bloccoSaldo:false },
+      consegne: [], consegneCliente: [], pose: [], diario: [],
+    };
+   await saveLavoro(nuovo);
+    const aggiornati = await getLavori();
+    setLavori(aggiornati || []);
+  };
   const modificaLavoro = async (codice, datiNuovi) => {
     const lavoro = lavori.find(l => l.codice === codice);
     if (lavoro && lavoro.id) {
@@ -443,7 +460,7 @@ if (!caricato) return <div style={{ minHeight: "100vh", display: "flex", alignIt
         {vista === "dashboard" && <Dashboard settimana={settimana} inRitardo={inRitardo} prossimi={prossimi} daAssegnare={daAssegnare} totale={attivi.length} vaiReport={() => setVista("report")} apriLavoro={apriLavoro} />}
         {vista === "report" && <Report settimana={settimana} inRitardo={inRitardo} prossimi={prossimi} apriLavoro={apriLavoro} onNotifica={(l)=>setModal({tipo:"posa", lavoro:l})} />}
         {vista === "lavori" && <Lavori lavori={attivi} apriLavoro={apriLavoro} onNuovo={()=>setModal({tipo:"nuovo"})} />}
-        {modificaLav && <ModificaModal lavoro={modificaLav} onClose={()=>setModificaLav(null)} onSalva={modificaLavoro} />}{vista === "dettaglio" && <Dettaglio l={lavoroSel} indietro={() => setVista("lavori")} onPosa={(l)=>setModal({tipo:"posa", lavoro:l})} onAggiungiConsegna={aggiungiConsegna} onAggiungiConsegnaCliente={aggiungiConsegnaCliente} onAggiornaPag={aggiornaPag} onConcludi={concludiLavoro} onRiapri={riapriLavoro} onSegnaArrivo={segnaArrivo} onAggiungiNota={aggiungiNota} onToggleFlag={toggleFlag} onElimina={eliminaLavoro} onModifica={()=>setModificaLav(lavoroSel)} onEliminaConsegna={eliminaConsegna} onEliminaPosa={eliminaPosa} onEliminaNota={eliminaNota} onEliminaConsegnaCliente={eliminaConsegnaCliente} />}
+        {modificaLav && <ModificaModal lavoro={modificaLav} onClose={()=>setModificaLav(null)} onSalva={modificaLavoro} />}{vista === "dettaglio" && <Dettaglio l={lavoroSel} indietro={() => setVista("lavori")} onPosa={(l)=>setModal({tipo:"posa", lavoro:l})} onAggiungiConsegna={aggiungiConsegna} onAggiungiConsegnaCliente={aggiungiConsegnaCliente} onAggiornaPag={aggiornaPag} onConcludi={concludiLavoro} onRiapri={riapriLavoro} onSegnaArrivo={segnaArrivo} onAggiungiNota={aggiungiNota} onToggleFlag={toggleFlag} onElimina={eliminaLavoro} onModifica={()=>setModificaLav(lavoroSel)} onDuplica={duplicaLavoro} esistenti={lavori.map(l=>l.codice)} onEliminaConsegna={eliminaConsegna} onEliminaPosa={eliminaPosa} onEliminaNota={eliminaNota} onEliminaConsegnaCliente={eliminaConsegnaCliente} />}
         {vista === "calendario" && <Calendario lavori={attivi} squadre={squadre} apriLavoro={apriLavoro} onPosa={(l)=>setModal({tipo:"posa", lavoro:l})} onNuovaSquadra={()=>setModal({tipo:"squadra"})} />}
         {vista === "magazzino" && <Magazzino lavori={attivi} apriLavoro={apriLavoro} onSegnaArrivo={segnaArrivo} />}
         {vista === "anagrafica" && <Anagrafica lavori={ordinati} apriLavoro={apriLavoro} onNuovo={()=>setModal({tipo:"nuovo"})} />}
@@ -715,7 +732,7 @@ function LavoroRow({ l, last, onClick }) {
 }
 
 // ============ DETTAGLIO LAVORO ============
-function Dettaglio({ l, indietro, onPosa, onAggiungiConsegna, onAggiungiConsegnaCliente, onAggiornaPag, onConcludi, onRiapri, onSegnaArrivo, onAggiungiNota, onToggleFlag, onElimina, onEliminaConsegna, onEliminaPosa, onEliminaNota, onEliminaConsegnaCliente, onModifica }) {
+function Dettaglio({ l, indietro, onPosa, onAggiungiConsegna, onAggiungiConsegnaCliente, onAggiornaPag, onConcludi, onRiapri, onSegnaArrivo, onAggiungiNota, onToggleFlag, onElimina, onEliminaConsegna, onEliminaPosa, onEliminaNota, onEliminaConsegnaCliente, onModifica, onDuplica, esistenti }) {
   const [addOpen, setAddOpen] = useState(false);
   const [addCliOpen, setAddCliOpen] = useState(false);
   const [nuovaNota, setNuovaNota] = useState("");
@@ -759,6 +776,7 @@ function Dettaglio({ l, indietro, onPosa, onAggiungiConsegna, onAggiungiConsegna
             <button className="btn" onClick={()=>onRiapri(l.codice)} style={{ display:"flex", alignItems:"center", gap:7, background:"#fff", border:"1px solid #d4ddea", color:"#5a6b82", padding:"10px 16px", borderRadius:10, fontWeight:600, fontSize:13.5 }}>Riapri lavoro</button>
           ) : (<>
             <button className="btn" onClick={onModifica} style={{ display:"flex", alignItems:"center", gap:7, background:"#fff", border:"1px solid #d4ddea", color:"#1e4d8c", padding:"10px 16px", borderRadius:10, fontWeight:600, fontSize:13.5 }}><Edit3 size={16} /> Modifica</button>
+            <button className="btn" onClick={()=>{ const nc = window.prompt(`Duplica ${l.codice}\n\nInserisci il codice per il nuovo lavoro:`); if(nc && nc.trim()){ if(esistenti.includes(nc.trim().toUpperCase())){ alert("Questo codice esiste già!"); } else { onDuplica(l.codice, nc); alert(`Lavoro ${nc.trim().toUpperCase()} creato! Lo trovi nella lista lavori.`); } } }} style={{ display:"flex", alignItems:"center", gap:7, background:"#fff", border:"1px solid #d4ddea", color:"#6d28d9", padding:"10px 16px", borderRadius:10, fontWeight:600, fontSize:13.5 }}><Copy size={16} /> Duplica</button>
             {organizzabile && sp !== "completa" && (
               <button className="btn" onClick={()=>onPosa(l)} style={{ display:"flex", alignItems:"center", gap:7, background:"#1e4d8c", color:"#fff", padding:"10px 16px", borderRadius:10, fontWeight:600, fontSize:13.5 }}>
                 <Bell size={16} /> {sp === "parziale" ? "Posa restante" : "Organizza posa"}
