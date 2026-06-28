@@ -828,7 +828,13 @@ function Dettaglio({ l, indietro, onPosa, onAggiungiConsegna, onAggiungiConsegna
           {/* DETTAGLI */}
           <div style={{ ...cardWrap, padding:"22px 24px", marginBottom:20 }}>
             <div style={{ fontSize:13, fontWeight:700, color:"#9aa7ba", textTransform:"uppercase", letterSpacing:"0.03em", marginBottom:16 }}>Dettagli</div>
-            <InfoRiga label="Indirizzo cantiere" icon={MapPin} value={l.indirizzo} />
+            <div style={{ marginBottom:14 }}>
+              <div style={{ fontSize:11.5, color:"#9aa7ba", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.03em", marginBottom:4 }}>Indirizzo cantiere</div>
+              <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l.indirizzo)}`} target="_blank" rel="noopener noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:7, fontSize:14, color:"#1e4d8c", fontWeight:600, textDecoration:"none" }}>
+                <MapPin size={15} /> {l.indirizzo || "—"}
+                <span style={{ fontSize:11.5, color:"#0e7490", background:"#ecfeff", padding:"2px 8px", borderRadius:5, fontWeight:600 }}>Apri in Maps</span>
+              </a>
+            </div>
             <InfoRiga label="Telefono" icon={Phone} value={l.tel} />
             {l.email && <InfoRiga label="Email" icon={Mail} value={l.email} />}
             <InfoRiga label="Tipo pagamento" icon={CheckCircle2} value={tipoPagLabel(l)} />
