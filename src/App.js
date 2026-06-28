@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { supabase } from './supabaseClient';
 import { saveLavoro, getLavori, addConsegna, addNota, savePosa, updateLavoro, segnaArrivoDB, deleteLavoro, deleteConsegna, deletePosa, deleteNota, deleteConsegnaCliente } from './db';
 import Login from './Login';
+import ModificaModal from './ModificaModal';
 import { getUtente, logout } from './auth';
 import {
   Package, Calendar, AlertTriangle, CheckCircle2, Clock, Truck,
@@ -119,6 +120,7 @@ setCaricandoDati(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [menuUtente, setMenuUtente] = useState(false);
+  const [modificaLav, setModificaLav] = useState(null);
   const [notifScartate, setNotifScartate] = useState([]);
 
   const ordinati = useMemo(() => [...lavori].sort((a,b) => {
@@ -147,6 +149,23 @@ const concludiLavoro = async (codice) => {
   const riapriLavoro = async (codice) => {
     await updateLavoro(codice, { concluso: false, data_chiusura: null });
     setLavori((prev) => prev.map((l) => l.codice === codice ? { ...l, concluso: false, dataChiusura: null } : l));
+  };
+  const modificaLavoro = async (codice, datiNuovi) => {
+    const lavoro = lavori.find(l => l.codice === codice);
+    if (lavoro && lavoro.id) {
+      await updateLavoro(codice, {
+        cliente: datiNuovi.cliente,
+        tel: datiNuovi.tel,
+        email: datiNuovi.email,
+        tipo: datiNuovi.tipo,
+        tipologia: datiNuovi.tipologia,
+        indirizzo: datiNuovi.indirizzo,
+        materiale_posa: datiNuovi.materialePosa,
+        note: datiNuovi.note,
+        solo_fornitura: datiNuovi.soloFornitura,
+      });
+    }
+    setLavori((prev) => prev.map((l) => l.codice === codice ? { ...l, ...datiNuovi } : l));
   };
   const eliminaLavoro = async (codice) => {
     const lavoro = lavori.find(l => l.codice === codice);
@@ -424,7 +443,7 @@ if (!caricato) return <div style={{ minHeight: "100vh", display: "flex", alignIt
         {vista === "dashboard" && <Dashboard settimana={settimana} inRitardo={inRitardo} prossimi={prossimi} daAssegnare={daAssegnare} totale={attivi.length} vaiReport={() => setVista("report")} apriLavoro={apriLavoro} />}
         {vista === "report" && <Report settimana={settimana} inRitardo={inRitardo} prossimi={prossimi} apriLavoro={apriLavoro} onNotifica={(l)=>setModal({tipo:"posa", lavoro:l})} />}
         {vista === "lavori" && <Lavori lavori={attivi} apriLavoro={apriLavoro} onNuovo={()=>setModal({tipo:"nuovo"})} />}
-        {vista === "dettaglio" && <Dettaglio l={lavoroSel} indietro={() => setVista("lavori")} onPosa={(l)=>setModal({tipo:"posa", lavoro:l})} onAggiungiConsegna={aggiungiConsegna} onAggiungiConsegnaCliente={aggiungiConsegnaCliente} onAggiornaPag={aggiornaPag} onConcludi={concludiLavoro} onRiapri={riapriLavoro} onSegnaArrivo={segnaArrivo} onAggiungiNota={aggiungiNota} onToggleFlag={toggleFlag} onElimina={eliminaLavoro} onEliminaConsegna={eliminaConsegna} onEliminaPosa={eliminaPosa} onEliminaNota={eliminaNota} onEliminaConsegnaCliente={eliminaConsegnaCliente} />}
+        {modificaLav && <ModificaModal lavoro={modificaLav} onClose={()=>setModificaLav(null)} onSalva={modificaLavoro} />}{vista === "dettaglio" && <Dettaglio l={lavoroSel} indietro={() => setVista("lavori")} onPosa={(l)=>setModal({tipo:"posa", lavoro:l})} onAggiungiConsegna={aggiungiConsegna} onAggiungiConsegnaCliente={aggiungiConsegnaCliente} onAggiornaPag={aggiornaPag} onConcludi={concludiLavoro} onRiapri={riapriLavoro} onSegnaArrivo={segnaArrivo} onAggiungiNota={aggiungiNota} onToggleFlag={toggleFlag} onElimina={eliminaLavoro} onModifica={()=>setModificaLav(lavoroSel)} onEliminaConsegna={eliminaConsegna} onEliminaPosa={eliminaPosa} onEliminaNota={eliminaNota} onEliminaConsegnaCliente={eliminaConsegnaCliente} />}
         {vista === "calendario" && <Calendario lavori={attivi} squadre={squadre} apriLavoro={apriLavoro} onPosa={(l)=>setModal({tipo:"posa", lavoro:l})} onNuovaSquadra={()=>setModal({tipo:"squadra"})} />}
         {vista === "magazzino" && <Magazzino lavori={attivi} apriLavoro={apriLavoro} onSegnaArrivo={segnaArrivo} />}
         {vista === "anagrafica" && <Anagrafica lavori={ordinati} apriLavoro={apriLavoro} onNuovo={()=>setModal({tipo:"nuovo"})} />}
@@ -696,7 +715,7 @@ function LavoroRow({ l, last, onClick }) {
 }
 
 // ============ DETTAGLIO LAVORO ============
-function Dettaglio({ l, indietro, onPosa, onAggiungiConsegna, onAggiungiConsegnaCliente, onAggiornaPag, onConcludi, onRiapri, onSegnaArrivo, onAggiungiNota, onToggleFlag, onElimina, onEliminaConsegna, onEliminaPosa, onEliminaNota, onEliminaConsegnaCliente }) {
+function Dettaglio({ l, indietro, onPosa, onAggiungiConsegna, onAggiungiConsegnaCliente, onAggiornaPag, onConcludi, onRiapri, onSegnaArrivo, onAggiungiNota, onToggleFlag, onElimina, onEliminaConsegna, onEliminaPosa, onEliminaNota, onEliminaConsegnaCliente, onModifica }) {
   const [addOpen, setAddOpen] = useState(false);
   const [addCliOpen, setAddCliOpen] = useState(false);
   const [nuovaNota, setNuovaNota] = useState("");
@@ -739,7 +758,7 @@ function Dettaglio({ l, indietro, onPosa, onAggiungiConsegna, onAggiungiConsegna
           {concluso ? (
             <button className="btn" onClick={()=>onRiapri(l.codice)} style={{ display:"flex", alignItems:"center", gap:7, background:"#fff", border:"1px solid #d4ddea", color:"#5a6b82", padding:"10px 16px", borderRadius:10, fontWeight:600, fontSize:13.5 }}>Riapri lavoro</button>
           ) : (<>
-            <button className="btn" style={{ display:"flex", alignItems:"center", gap:7, background:"#fff", border:"1px solid #d4ddea", color:"#5a6b82", padding:"10px 16px", borderRadius:10, fontWeight:600, fontSize:13.5 }}><Edit3 size={16} /> Modifica</button>
+            <button className="btn" onClick={onModifica} style={{ display:"flex", alignItems:"center", gap:7, background:"#fff", border:"1px solid #d4ddea", color:"#1e4d8c", padding:"10px 16px", borderRadius:10, fontWeight:600, fontSize:13.5 }}><Edit3 size={16} /> Modifica</button>
             {organizzabile && sp !== "completa" && (
               <button className="btn" onClick={()=>onPosa(l)} style={{ display:"flex", alignItems:"center", gap:7, background:"#1e4d8c", color:"#fff", padding:"10px 16px", borderRadius:10, fontWeight:600, fontSize:13.5 }}>
                 <Bell size={16} /> {sp === "parziale" ? "Posa restante" : "Organizza posa"}
