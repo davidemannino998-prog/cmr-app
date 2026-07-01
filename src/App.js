@@ -835,7 +835,13 @@ function Dettaglio({ l, indietro, onPosa, onAggiungiConsegna, onAggiungiConsegna
                 <span style={{ fontSize:11.5, color:"#0e7490", background:"#ecfeff", padding:"2px 8px", borderRadius:5, fontWeight:600 }}>Apri in Maps</span>
               </a>
             </div>
-            <InfoRiga label="Telefono" icon={Phone} value={l.tel} />
+            <div style={{ marginBottom:14 }}>
+              <div style={{ fontSize:11.5, color:"#9aa7ba", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.03em", marginBottom:4 }}>Telefono</div>
+              <a href={`tel:${(l.tel||"").replace(/\s/g,"")}`} style={{ display:"inline-flex", alignItems:"center", gap:7, fontSize:14, color:"#1e4d8c", fontWeight:600, textDecoration:"none" }}>
+                <Phone size={15} /> {l.tel || "—"}
+                {l.tel && <span style={{ fontSize:11.5, color:"#15803d", background:"#f0fdf4", padding:"2px 8px", borderRadius:5, fontWeight:600 }}>Chiama</span>}
+              </a>
+            </div>
             {l.email && <InfoRiga label="Email" icon={Mail} value={l.email} />}
             <InfoRiga label="Tipo pagamento" icon={CheckCircle2} value={tipoPagLabel(l)} />
             <InfoRiga label="Data rilievo" icon={Calendar} value={fmtData(l.dataRilievo)} />
