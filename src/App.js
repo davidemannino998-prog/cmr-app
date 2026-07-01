@@ -328,6 +328,24 @@ const handleLogout = async () => {
     await logout();
     setUtente(null);
   };
+  useEffect(() => {
+    if (!utente) return;
+    let timer;
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        await logout();
+        setUtente(null);
+      }, 30 * 60 * 1000); // 30 minuti
+    };
+    const eventi = ["mousemove", "keydown", "click", "scroll", "touchstart"];
+    eventi.forEach((e) => window.addEventListener(e, reset));
+    reset();
+    return () => {
+      clearTimeout(timer);
+      eventi.forEach((e) => window.removeEventListener(e, reset));
+    };
+  }, [utente]);
   const NAV = [
     { id:"dashboard", label:"Dashboard", icon:TrendingUp },
     { id:"report", label:"Report settimanale", icon:FileText },
