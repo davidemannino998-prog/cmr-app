@@ -8,7 +8,7 @@ import {
   Package, Calendar, AlertTriangle, CheckCircle2, Clock, Truck,
   Bell, FileText, ChevronRight, ChevronLeft, Search, Plus, Mail,
   Users, TrendingUp, MapPin, Circle, List, Contact,
-  Phone, Image, FolderOpen, ArrowLeft, Edit3, Copy, Check,
+  Phone, Image, FolderOpen, ArrowLeft, Edit3, Copy, Check, Send,
   X, Layers, Link2, Hammer, Ruler, BookOpen
 } from "lucide-react";
 
@@ -1639,9 +1639,14 @@ function PosaModal({ lavoro, squadre, onAddSquadra, onConferma, onClose }) {
           {/* messaggio generato */}
           <div style={{ marginTop:20, display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
             <label style={{ ...labelStyle, margin:0 }}>Messaggio per il posatore</label>
-            <button className="btn" onClick={copia} style={{ display:"flex", alignItems:"center", gap:6, background: copiato?"#f0fdf4":"#eef3fb", color: copiato?"#15803d":"#1e4d8c", padding:"7px 13px", borderRadius:8, fontWeight:600, fontSize:12.5 }}>
-              {copiato ? <><Check size={14} /> Copiato!</> : <><Copy size={14} /> Copia</>}
-            </button>
+            <div style={{ display:"flex", gap:8 }}>
+              <button className="btn" onClick={copia} style={{ display:"flex", alignItems:"center", gap:6, background: copiato?"#f0fdf4":"#eef3fb", color: copiato?"#15803d":"#1e4d8c", padding:"7px 13px", borderRadius:8, fontWeight:600, fontSize:12.5 }}>
+                {copiato ? <><Check size={14} /> Copiato!</> : <><Copy size={14} /> Copia</>}
+              </button>
+              <a href={`https://wa.me/?text=${encodeURIComponent(messaggio)}`} target="_blank" rel="noopener noreferrer" className="btn" style={{ display:"flex", alignItems:"center", gap:6, background:"#25D366", color:"#fff", padding:"7px 13px", borderRadius:8, fontWeight:600, fontSize:12.5, textDecoration:"none" }}>
+                <Send size={14} /> WhatsApp
+              </a>
+            </div>
           </div>
           <textarea readOnly value={messaggio} rows={9} style={{ width:"100%", padding:"14px", border:"1px solid #dce3ee", borderRadius:10, fontSize:13.5, lineHeight:1.6, color:"#2d3a4c", background:"#f7f9fc", resize:"vertical", outline:"none" }} />
           <div style={{ fontSize:11.5, color:"#9aa7ba", marginTop:8, lineHeight:1.5 }}>Il "Materiale da posare" nel messaggio segue le voci selezionate qui sopra. Copialo e incollalo su WhatsApp, e aggiungi il tuo saluto finale. Il nome del posatore verrà personalizzato quando definirai i nomi reali delle squadre.</div>
